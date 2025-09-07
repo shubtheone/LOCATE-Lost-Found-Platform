@@ -1,27 +1,76 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuth } from "@/contexts/auth-context"
 import { useToast } from "@/hooks/use-toast"
-import { User, Mail, Calendar, Edit2, Save, X } from "lucide-react"
+import { User, Mail, Edit2, Save, X, Loader2, ArrowLeft } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface UserProfileProps {
   onBack: () => void
 }
 
 export function UserProfile({ onBack }: UserProfileProps) {
-  const { user } = useAuth()
+  const { user, isLoading: isAuthLoading } = useAuth()
   const { toast } = useToast()
+  
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState(user?.name || "")
+  const [isSaving, setIsSaving] = useState(false)
+  const [stats, setStats] = useState({ total: 0, available: 0, returned: 0 })
+  const [isStatsLoading, setIsStatsLoading] = useState(true)
 
-  if (!user) return null
+  // Fetch user-specific item stats from the API
+  useEffect(() => {
+    const getItemStats = async () => {
+      if (!user) return;
+      setIsStatsLoading(true);
+      try {
+        const response = await fetch('/api/items');
+        if (!response.ok) throw new Error("Failed to fetch items for stats");
+        
+        const { items } = await response.json();
+        const userItems = items.filter((item: any) => item.postedBy === user.id);
+        const returnedItems = userItems.filter((item: any) => item.status === "returned").length;
+        
+        setStats({
+          total: userItems.length,
+          available: userItems.filter((item: any) => item.status === "available").length,
+          returned: returnedItems,
+        });
+      } catch (error) {
+        console.error("Failed to get item stats:", error);
+      } finally {
+        setIsStatsLoading(false);
+      }
+    };
 
-  const handleSave = () => {
+    getItemStats();
+  }, [user]);
+
+  // Set the initial editable name when user data loads
+  useEffect(() => {
+    if (user) {
+        setEditedName(user.name);
+    }
+  }, [user]);
+
+  if (isAuthLoading || !user) {
+    // You can replace this with a more detailed skeleton if you prefer
+    return (
+        <div className="max-w-2xl mx-auto space-y-6">
+            <Skeleton className="h-10 w-48" />
+            <Skeleton className="h-40 w-full" />
+            <Skeleton className="h-40 w-full" />
+        </div>
+    );
+  }
+
+  const handleSave = async () => {
     if (!editedName.trim()) {
       toast({
         title: "Error",
@@ -31,30 +80,44 @@ export function UserProfile({ onBack }: UserProfileProps) {
       return
     }
 
-    // Update user in localStorage
-    const updatedUser = { ...user, name: editedName }
-    localStorage.setItem("lf_user", JSON.stringify(updatedUser))
+    if (editedName.trim() === user.name) {
+        setIsEditing(false);
+        return;
+    }
 
-    // Update user in users list
-    const users = JSON.parse(localStorage.getItem("lf_users") || "[]")
-    const updatedUsers = users.map((u: any) => (u.id === user.id ? { ...u, name: editedName } : u))
-    localStorage.setItem("lf_users", JSON.stringify(updatedUsers))
+    setIsSaving(true);
+    const token = localStorage.getItem("lf_token");
 
-    // Update items posted by this user
-    const items = JSON.parse(localStorage.getItem("lf_items") || "[]")
-    const updatedItems = items.map((item: any) =>
-      item.postedBy === user.id ? { ...item, postedByName: editedName } : item,
-    )
-    localStorage.setItem("lf_items", JSON.stringify(updatedItems))
+    try {
+        const response = await fetch(`/api/users/${user.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ name: editedName.trim() })
+        });
 
-    setIsEditing(false)
-    toast({
-      title: "Profile Updated",
-      description: "Your profile has been updated successfully",
-    })
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || "Failed to update profile");
+        }
 
-    // Refresh the page to update the context
-    window.location.reload()
+        setIsEditing(false)
+        toast({
+          title: "Profile Updated",
+          description: "Your name has been updated successfully.",
+        })
+        
+        // Reload the page to make the new name appear in the header
+        window.location.reload();
+
+    } catch (error: any) {
+        toast({
+            title: "Update Failed",
+            description: error.message || "An error occurred. Please try again.",
+            variant: "destructive"
+        });
+    } finally {
+        setIsSaving(false);
+    }
   }
 
   const handleCancel = () => {
@@ -62,35 +125,15 @@ export function UserProfile({ onBack }: UserProfileProps) {
     setIsEditing(false)
   }
 
-  const getJoinDate = () => {
-    // Since we don't store join date, we'll use a placeholder
-    return "Member since registration"
-  }
-
-  const getItemStats = () => {
-    const items = JSON.parse(localStorage.getItem("lf_items") || "[]")
-    const userItems = items.filter((item: any) => item.postedBy === user.id)
-    const availableItems = userItems.filter((item: any) => item.status === "available").length
-    const returnedItems = userItems.filter((item: any) => item.status === "returned").length
-
-    return {
-      total: userItems.length,
-      available: availableItems,
-      returned: returnedItems,
-    }
-  }
-
-  const stats = getItemStats()
-
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
         <Button variant="ghost" onClick={onBack} className="mb-4">
-          <User className="h-4 w-4 mr-2" />
+          <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Dashboard
         </Button>
         <h1 className="text-3xl font-bold">User Profile</h1>
-        <p className="text-muted-foreground mt-2">Manage your account information</p>
+        <p className="text-muted-foreground mt-2">Manage your account information and activity</p>
       </div>
 
       <Card>
@@ -99,7 +142,7 @@ export function UserProfile({ onBack }: UserProfileProps) {
             <User className="h-5 w-5" />
             Profile Information
           </CardTitle>
-          <CardDescription>Your account details and statistics</CardDescription>
+          <CardDescription>Your personal account details</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-4">
@@ -112,19 +155,23 @@ export function UserProfile({ onBack }: UserProfileProps) {
                     value={editedName}
                     onChange={(e) => setEditedName(e.target.value)}
                     placeholder="Enter your full name"
+                    disabled={isSaving}
                   />
-                  <Button size="sm" onClick={handleSave}>
-                    <Save className="h-4 w-4" />
+                  <Button size="icon" onClick={handleSave} disabled={isSaving}>
+                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    <span className="sr-only">Save</span>
                   </Button>
-                  <Button size="sm" variant="outline" onClick={handleCancel}>
+                  <Button size="icon" variant="outline" onClick={handleCancel} disabled={isSaving}>
                     <X className="h-4 w-4" />
+                    <span className="sr-only">Cancel</span>
                   </Button>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
                   <Input value={user.name} disabled />
-                  <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}>
+                  <Button size="icon" variant="outline" onClick={() => setIsEditing(true)}>
                     <Edit2 className="h-4 w-4" />
+                    <span className="sr-only">Edit Name</span>
                   </Button>
                 </div>
               )}
@@ -132,19 +179,11 @@ export function UserProfile({ onBack }: UserProfileProps) {
 
             <div className="space-y-2">
               <Label htmlFor="email">Email Address</Label>
-              <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                <Input value={user.email} disabled />
+              <div className="relative">
+                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input value={user.email} disabled className="pl-10" />
               </div>
-              <p className="text-sm text-muted-foreground">Email cannot be changed</p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Member Since</Label>
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">{getJoinDate()}</span>
-              </div>
+              <p className="text-sm text-muted-foreground">Email cannot be changed.</p>
             </div>
           </div>
         </CardContent>
@@ -153,23 +192,31 @@ export function UserProfile({ onBack }: UserProfileProps) {
       <Card>
         <CardHeader>
           <CardTitle>Activity Statistics</CardTitle>
-          <CardDescription>Your contribution to the Lost & Found community</CardDescription>
+          <CardDescription>Your contribution to the community</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center p-4 bg-muted rounded-lg">
-              <div className="text-2xl font-bold text-primary">{stats.total}</div>
-              <div className="text-sm text-muted-foreground">Items Posted</div>
+          {isStatsLoading ? (
+            <div className="grid grid-cols-3 gap-4">
+                <Skeleton className="h-[76px] w-full rounded-lg" />
+                <Skeleton className="h-[76px] w-full rounded-lg" />
+                <Skeleton className="h-[76px] w-full rounded-lg" />
             </div>
-            <div className="text-center p-4 bg-muted rounded-lg">
-              <div className="text-2xl font-bold text-green-600">{stats.available}</div>
-              <div className="text-sm text-muted-foreground">Available</div>
+          ) : (
+            <div className="grid grid-cols-3 gap-4">
+                <div className="text-center p-4 bg-muted rounded-lg">
+                <div className="text-2xl font-bold text-primary">{stats.total}</div>
+                <div className="text-sm text-muted-foreground">Items Posted</div>
+                </div>
+                <div className="text-center p-4 bg-muted rounded-lg">
+                <div className="text-2xl font-bold text-green-600">{stats.available}</div>
+                <div className="text-sm text-muted-foreground">Available</div>
+                </div>
+                <div className="text-center p-4 bg-muted rounded-lg">
+                <div className="text-2xl font-bold text-blue-600">{stats.returned}</div>
+                <div className="text-sm text-muted-foreground">Returned</div>
+                </div>
             </div>
-            <div className="text-center p-4 bg-muted rounded-lg">
-              <div className="text-2xl font-bold text-blue-600">{stats.returned}</div>
-              <div className="text-sm text-muted-foreground">Returned</div>
-            </div>
-          </div>
+          )}
         </CardContent>
       </Card>
     </div>

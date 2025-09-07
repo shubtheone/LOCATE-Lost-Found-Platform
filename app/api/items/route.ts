@@ -44,7 +44,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    const { title, description, category, location, dateFound, contactInfo } = await request.json()
+    // --- CHANGE: Added imageUrl to the destructuring ---
+    const { title, description, category, location, dateFound, contactInfo, imageUrl } = await request.json()
 
     if (!title || !description || !category || !location || !dateFound || !contactInfo) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
@@ -57,6 +58,7 @@ export async function POST(request: NextRequest) {
       location,
       dateFound,
       contactInfo,
+      imageUrl, // <-- ADDED: imageUrl can be null or a string
       postedBy: user._id.toString(),
       postedByName: user.name,
       createdAt: new Date(),

@@ -82,7 +82,7 @@ export function ItemRegistrationForm({ onBack, onSuccess }: ItemRegistrationForm
       setDateFound("")
       setContactInfo("")
 
-      onSuccess()
+      onSuccess();
     } catch (error) {
       toast({
         title: "Error",

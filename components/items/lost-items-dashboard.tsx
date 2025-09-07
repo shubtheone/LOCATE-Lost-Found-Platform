@@ -8,6 +8,9 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { type FoundItem, ITEM_CATEGORIES } from "@/types/item"
 import { ArrowLeft, Search, Filter } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
+// --- FIX: Added the missing Card imports below ---
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 
 interface LostItemsDashboardProps {
   onBack: () => void
@@ -21,16 +24,28 @@ export function LostItemsDashboard({ onBack }: LostItemsDashboardProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
   const [selectedStatus, setSelectedStatus] = useState<string>("all")
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Load items from localStorage
-    const savedItems = JSON.parse(localStorage.getItem("lf_items") || "[]")
-    setItems(savedItems)
-    setFilteredItems(savedItems)
+    const fetchItems = async () => {
+      setIsLoading(true)
+      try {
+        const response = await fetch("/api/items")
+        if (!response.ok) {
+          throw new Error("Failed to fetch items")
+        }
+        const data = await response.json()
+        setItems(data.items)
+      } catch (error) {
+        console.error(error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchItems()
   }, [])
 
   useEffect(() => {
-    // Filter items based on search and filters
     let filtered = items
 
     if (searchTerm) {
@@ -38,7 +53,7 @@ export function LostItemsDashboard({ onBack }: LostItemsDashboardProps) {
         (item) =>
           item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
           item.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          item.location.toLowerCase().includes(searchTerm.toLowerCase()),
+          item.location.toLowerCase().includes(searchTerm.toLowerCase())
       )
     }
 
@@ -73,7 +88,9 @@ export function LostItemsDashboard({ onBack }: LostItemsDashboardProps) {
             Back to Dashboard
           </Button>
           <h1 className="text-3xl font-bold">Browse Found Items</h1>
-          <p className="text-muted-foreground mt-2">Search through {items.length} reported found items</p>
+          <p className="text-muted-foreground mt-2">
+            {isLoading ? "Loading items..." : `Search through ${items.length} reported found items`}
+          </p>
         </div>
       </div>
 
@@ -128,39 +145,58 @@ export function LostItemsDashboard({ onBack }: LostItemsDashboardProps) {
       </div>
 
       {/* Results */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-sm text-muted-foreground">
-            Showing {filteredItems.length} of {items.length} items
-          </p>
+      {isLoading ? (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader>
+                <Skeleton className="h-5 w-3/4" />
+                <Skeleton className="h-4 w-1/2 mt-1" />
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-5/6" />
+                <Skeleton className="h-9 w-full mt-2" />
+              </CardContent>
+            </Card>
+          ))}
         </div>
+      ) : (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm text-muted-foreground">
+              Showing {filteredItems.length} of {items.length} items
+            </p>
+          </div>
 
-        {filteredItems.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="text-muted-foreground mb-4">
-              {items.length === 0 ? (
-                <>
-                  <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <h3 className="text-lg font-medium mb-2">No items found yet</h3>
-                  <p>Be the first to report a found item!</p>
-                </>
-              ) : (
-                <>
-                  <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <h3 className="text-lg font-medium mb-2">No items match your search</h3>
-                  <p>Try adjusting your search terms or filters</p>
-                </>
-              )}
+          {filteredItems.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="text-muted-foreground mb-4">
+                {items.length === 0 ? (
+                  <>
+                    <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <h3 className="text-lg font-medium mb-2">No items found yet</h3>
+                    <p>Be the first to report a found item!</p>
+                  </>
+                ) : (
+                  <>
+                    <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <h3 className="text-lg font-medium mb-2">No items match your search</h3>
+                    <p>Try adjusting your search terms or filters</p>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredItems.map((item) => (
-              <ItemCard key={item.id} item={item} onContact={handleContactItem} />
-            ))}
-          </div>
-        )}
-      </div>
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredItems.map((item) => (
+                <ItemCard key={item.id} item={item} onContact={handleContactItem} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <ContactModal item={selectedItem} isOpen={isContactModalOpen} onClose={() => setIsContactModalOpen(false)} />
     </div>

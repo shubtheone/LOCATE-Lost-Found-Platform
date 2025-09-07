@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type { FoundItem } from "@/types/item"
 import { Calendar, MapPin, User } from "lucide-react"
+import Image from "next/image"
 
 interface ItemCardProps {
   item: FoundItem
@@ -34,7 +35,20 @@ export function ItemCard({ item, onContact }: ItemCardProps) {
   }
 
   return (
-    <Card className="hover:shadow-lg transition-shadow">
+    <Card className="hover:shadow-lg transition-shadow flex flex-col">
+      {item.imageUrl && (
+        <div className="relative w-full h-48 border-b">
+          <Image
+            src={item.imageUrl}
+            alt={`Image of ${item.title}`}
+            fill
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            style={{ objectFit: 'cover' }}
+            className="rounded-t-xl"
+            priority={true} // Load first few images faster
+          />
+        </div>
+      )}
       <CardHeader>
         <div className="flex items-start justify-between">
           <div className="flex-1">
@@ -50,26 +64,28 @@ export function ItemCard({ item, onContact }: ItemCardProps) {
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-sm text-muted-foreground line-clamp-3">{item.description}</p>
+      <CardContent className="space-y-4 flex-grow flex flex-col justify-between">
+        <div>
+          <p className="text-sm text-muted-foreground line-clamp-3">{item.description}</p>
 
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <MapPin className="h-4 w-4" />
-            <span>Found at: {item.location}</span>
-          </div>
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Calendar className="h-4 w-4" />
-            <span>Date found: {formatDate(item.dateFound)}</span>
-          </div>
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <User className="h-4 w-4" />
-            <span>Posted by: {item.postedByName}</span>
+          <div className="space-y-2 text-sm mt-4">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <MapPin className="h-4 w-4" />
+              <span>Found at: {item.location}</span>
+            </div>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Calendar className="h-4 w-4" />
+              <span>Date found: {formatDate(item.dateFound)}</span>
+            </div>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <User className="h-4 w-4" />
+              <span>Posted by: {item.postedByName}</span>
+            </div>
           </div>
         </div>
 
         {item.status === "available" && (
-          <Button onClick={() => onContact(item)} className="w-full" size="sm">
+          <Button onClick={() => onContact(item)} className="w-full mt-4" size="sm">
             Contact Finder
           </Button>
         )}
