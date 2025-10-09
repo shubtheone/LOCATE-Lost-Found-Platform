@@ -2,6 +2,8 @@ import { type NextRequest, NextResponse } from "next/server"
 import { connectToDatabase } from "@/lib/mongodb"
 import { hashPassword, generateToken } from "@/lib/auth"
 
+export const runtime = "nodejs";
+
 export async function POST(request: NextRequest) {
   try {
     const { name, email, password } = await request.json()
